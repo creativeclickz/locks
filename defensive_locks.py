@@ -11,7 +11,6 @@ All stick outputs normalized to full axis values. No smoothing, no interpolation
 """
 
 from creative_helper import (
-    get_val,
     set_val,
     get_actual,
     MAX_AXIS,

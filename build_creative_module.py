@@ -176,6 +176,12 @@ setup(
     with open(setup_path, "w") as f:
         f.write(setup_content)
 
+    # Remove old .pyd files to avoid confusion
+    old_pyd_pattern = os.path.join(script_dir, "defensive_locks*.pyd")
+    for old_pyd in glob_module.glob(old_pyd_pattern):
+        os.remove(old_pyd)
+        print(f"[*] Removed old build: {os.path.basename(old_pyd)}")
+
     # Build using Python 3.11
     print()
     print("[*] Compiling defensive_locks.py -> .pyd ...")
@@ -196,7 +202,9 @@ setup(
         pyd_files = glob_module.glob(pyd_pattern)
         if pyd_files:
             pyd_name = os.path.basename(pyd_files[0])
+            pyd_full = pyd_files[0]
             print(f"  Output: {pyd_name}")
+            print(f"  Location: {pyd_full}")
         else:
             pyd_name = "defensive_locks.cp311-win_amd64.pyd"
             print(f"  Expected output: {pyd_name}")

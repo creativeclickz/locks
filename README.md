@@ -42,13 +42,31 @@ python main.py
 
 ## Requirements
 
-- Python 3.8+
-- A connected game controller (Xbox, PlayStation, etc.)
-- Windows / Linux / macOS
+- Python 3.8+ (for running the standalone GUI version)
+- A connected game controller (DualSense / PS5 controller)
+- Windows (for virtual controller and Helios integration)
+
+## Building the Creative Module (.pyd for Helios / 2K Vision)
+
+To use this as a Creative Module inside Helios II / 2K Vision:
+
+1. **Install Python 3.11** (required — must match Helios): https://www.python.org/downloads/release/python-3110/
+2. **Install Visual Studio Build Tools** (for the C compiler): https://visualstudio.microsoft.com/visual-cpp-build-tools/
+   - Select "Desktop development with C++" during install
+3. Run the build script:
+   ```bash
+   cd locks
+   python build_creative_module.py
+   ```
+   The script auto-finds Python 3.11 even if it's not your default Python.
+4. Copy the output `defensive_locks.cp311-win_amd64.pyd` to your 2K Vision `_creative` folder
+5. In Helios, go to Creative Modules and import it
 
 ## Architecture
 
+- `defensive_locks.py` — Creative Module for Helios (uses `creative_helper` API: `iterate()`, `get_val()`, `set_val()`, `get_actual()`)
 - `engine.py` — Core input processing (deadzone, snapping, RS override logic)
 - `gui.py` — Full tkinter GUI with toggles, sliders, and status indicators
 - `overlay.py` — Small always-on-top overlay window for in-game status
-- `main.py` — Entry point, wires everything together
+- `main.py` — Entry point for standalone mode, wires everything together
+- `build_creative_module.py` — Build script to compile the Creative Module .pyd

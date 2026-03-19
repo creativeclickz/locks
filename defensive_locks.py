@@ -8,7 +8,13 @@ Pipeline per tick:
   Raw Input (get_actual) -> Deadzone -> Cardinal Snapping -> RS Override -> Output (set_val)
 
 All stick outputs normalized to full axis values. No smoothing, no interpolation.
+
+Settings are read from defensive_locks_config.json (written by the settings GUI).
+The config file is checked periodically so changes apply in real time.
 """
+
+import os
+import json
 
 from creative_helper import (
     set_val,
@@ -21,8 +27,15 @@ from creative_helper import (
     BUTTON_5,
 )
 
+# ── Config File Path ─────────────────────────────────────────────────
+# Store config next to this module, or in user's home directory
+_CONFIG_FILENAME: str = "defensive_locks_config.json"
+_config_path: str = ""
+_config_check_counter: int = 0
+_CONFIG_CHECK_INTERVAL: int = 50  # Check config every ~50 ticks (~100ms at 500Hz)
+
 # ── Configuration ─────────────────────────────────────────────────────
-# These can be adjusted as needed
+# These can be adjusted via the settings GUI
 
 # Master toggle (1 = ON, 0 = OFF)
 _master_enabled: int = 1
@@ -47,6 +60,64 @@ _l2_defensive_threshold: float = 0.30
 _is_moving: int = 0
 _is_defensive: int = 0
 _rs_override_active: int = 0
+
+
+def _find_config_path() -> str:
+    """Find the config file path. Checks multiple locations."""
+    # Check next to this module file
+    try:
+        module_dir = os.path.dirname(os.path.abspath(__file__))
+        path = os.path.join(module_dir, _CONFIG_FILENAME)
+        if os.path.isfile(path):
+            return path
+    except (NameError, OSError):
+        pass
+
+    # Check user's home directory
+    home = os.path.expanduser("~")
+    path = os.path.join(home, _CONFIG_FILENAME)
+    if os.path.isfile(path):
+        return path
+
+    # Check common Helios/2K Vision locations
+    for check_dir in [
+        os.path.join(home, "Documents"),
+        os.path.join(home, "AppData", "Local", "2K Vision"),
+    ]:
+        path = os.path.join(check_dir, _CONFIG_FILENAME)
+        if os.path.isfile(path):
+            return path
+
+    # Default: next to module or in home
+    try:
+        module_dir = os.path.dirname(os.path.abspath(__file__))
+        return os.path.join(module_dir, _CONFIG_FILENAME)
+    except (NameError, OSError):
+        return os.path.join(home, _CONFIG_FILENAME)
+
+
+def _load_config() -> None:
+    """Load configuration from JSON file if it exists."""
+    global _master_enabled, _rs_auto_up_enabled, _ls_snapping_enabled
+    global _rs_snapping_enabled, _deadzone_fraction, _snap_fraction
+    global _l2_defensive_threshold, _config_path
+
+    if not _config_path:
+        _config_path = _find_config_path()
+
+    try:
+        if os.path.isfile(_config_path):
+            with open(_config_path, "r") as f:
+                cfg = json.load(f)
+            _master_enabled = 1 if cfg.get("master_enabled", True) else 0
+            _rs_auto_up_enabled = 1 if cfg.get("rs_auto_up_enabled", True) else 0
+            _ls_snapping_enabled = 1 if cfg.get("ls_snapping_enabled", True) else 0
+            _rs_snapping_enabled = 1 if cfg.get("rs_snapping_enabled", True) else 0
+            _deadzone_fraction = float(cfg.get("deadzone", 0.15))
+            _snap_fraction = float(cfg.get("snap_threshold", 0.25))
+            _l2_defensive_threshold = float(cfg.get("l2_threshold", 0.30))
+    except (json.JSONDecodeError, OSError, ValueError, KeyError):
+        pass  # Keep current settings on any error
 
 
 # ── Helper Functions ──────────────────────────────────────────────────
@@ -111,6 +182,8 @@ def _init() -> None:
     _is_moving = 0
     _is_defensive = 0
     _rs_override_active = 0
+    # Load saved config if available
+    _load_config()
 
 
 # ── Main Iterate Function ────────────────────────────────────────────
@@ -120,7 +193,13 @@ def iterate() -> None:
     Called every controller tick by 2K Vision / Helios.
     Reads raw input, processes through pipeline, writes output.
     """
-    global _is_moving, _is_defensive, _rs_override_active
+    global _is_moving, _is_defensive, _rs_override_active, _config_check_counter
+
+    # Periodically reload config from file
+    _config_check_counter += 1
+    if _config_check_counter >= _CONFIG_CHECK_INTERVAL:
+        _config_check_counter = 0
+        _load_config()
 
     # If master is off, don't process — passthrough raw input
     if not _master_enabled:
